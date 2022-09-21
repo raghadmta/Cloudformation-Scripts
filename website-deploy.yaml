@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create a EC2 under a VPC
+Parameters:
+  ImageId:
+    Type: String
+    Description: This is a parameter to store image id
+    Default: ami-0cff7528ff583bf9a
+
+Resources: 
+            #  create a custom VPC
+  SampleVpc:
+    Type: AWS::EC2::VPC
+    Description: Section 2 Sample VPC definition
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        -
+          Key: Name
+          Value: Section2SampleVpc4
+  SampleSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref SampleVpc
+  SampleRouteTable:
+    Type: AWS::EC2::RouteTable 
+    Properties:
+      VpcId: !Ref SampleVpc
+  SampleInternetGateway:
+    Type: AWS::EC2::InternetGateway
+  SampleGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SampleVpc
+      InternetGatewayId: !Ref SampleInternetGateway
+  InternetRoute:
+    Type: AWS::EC2::Route 
+    DependsOn:
+      - SampleGatewayAttachment
+    Properties:
+      RouteTableId: !Ref SampleRouteTable
+      GatewayId: !Ref SampleInternetGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  SampleSubnetRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SampleRouteTable
+      SubnetId: !Ref SampleSubnet
+        # two ec2 servers
+  FIRSTInstance: 
+    Type: AWS::EC2::Instance 
+    DependsOn:
+      - InternetRoute
+      - SampleSubnetRouteTableAssoc
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: !Ref SampleSubnet 
+      ImageId: !Ref ImageId 
+      SecurityGroupIds:
+        - !Ref FIRSTSecurityGroup
+      Tags:
+        -
+          Key: Name
+          Value: Instance1
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            sudo su
+            yum update -y
+            yum install httpd -y
+            systemctl start httpd
+  SECOUNDInstance: 
+    Type: AWS::EC2::Instance 
+    DependsOn:
+      - InternetRoute
+      - SampleSubnetRouteTableAssoc
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: !Ref SampleSubnet 
+      ImageId: !Ref ImageId 
+      SecurityGroupIds:
+        - !Ref SecoundSecurityGroup
+      Tags:
+        -
+          Key: Name
+          Value: Instance2
+          # two security groups
+  FIRSTSecurityGroup:
+    Type: AWS::EC2::SecurityGroup 
+    Properties:
+      GroupDescription: Sample security group for First Instance
+      VpcId: !Ref SampleVpc
+      SecurityGroupIngress:
+        -
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  SecoundSecurityGroup:
+    Type: AWS::EC2::SecurityGroup 
+    Properties:
+      GroupDescription: Sample security group for Secound instance
+      VpcId: !Ref SampleVpc
+      SecurityGroupIngress:
+        -
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
